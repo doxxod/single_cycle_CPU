@@ -20,6 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 module dmem(
     input clk, reset,
+	 input [1:0] store, load,
     input MemWr,
     input [31:0] ALUout,
 	 input [31:0] PC,
@@ -28,6 +29,7 @@ module dmem(
     );
 	 
 	reg [31:0] RAM[1023:0];
+	reg [31:0] out;
 	
 	integer i;
 	
@@ -37,11 +39,52 @@ module dmem(
 				RAM[i] <= 0;
 			end
 		end
-		if(MemWr) begin
-			RAM[ALUout[11:2]] <= MemData;	
-			$display("@%h: *%h <= %h", PC, ALUout, MemData);
+		else if(MemWr) begin
+			case(store)
+				2'b00: RAM[ALUout[11:2]] = MemData;
+				2'b01: begin
+					case(ALUout[1])
+						0: RAM[ALUout[11:2]][15:0] = MemData[15:0];
+						1: RAM[ALUout[11:2]][31:16] = MemData[15:0];
+						default: RAM[ALUout[11:2]] = 32'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;
+					endcase
+					end
+				2'b10: begin
+					case(ALUout[1:0])
+						2'b00: RAM[ALUout[11:2]][7:0] = MemData[7:0];
+						2'b01: RAM[ALUout[11:2]][15:8] = MemData[7:0];
+						2'b10: RAM[ALUout[11:2]][23:16] = MemData[7:0];
+						2'b11: RAM[ALUout[11:2]][31:24] = MemData[7:0];
+						default: RAM[ALUout[11:2]] = 32'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;
+					endcase
+					end
+				default: RAM[ALUout[11:2]] = 32'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;
+			endcase
+			$display("@%h: *%h <= %h", PC, ALUout, RAM[ALUout[11:2]]);
 		end
 	end
 	
-	assign ReadData = RAM[ALUout[11:2]];
+	always @* begin
+		case(load)
+			2'b00: out <= RAM[ALUout[11:2]];
+			2'b01: begin
+				case(ALUout[1])
+					0: out <= {{16{RAM[ALUout[11:2]][15]}}, RAM[ALUout[11:2]][15:0]};
+					1: out <= {{16{RAM[ALUout[11:2]][31]}}, RAM[ALUout[11:2]][31:16]};
+					default: out <= 32'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;
+					endcase
+				end
+			2'b10: begin
+				case(ALUout[1:0])
+					2'b00: out <= {{24{RAM[ALUout[11:2]][7]}}, RAM[ALUout[11:2]][7:0]};
+					2'b01: out <= {{24{RAM[ALUout[11:2]][15]}}, RAM[ALUout[11:2]][15:8]};
+					2'b10: out <= {{24{RAM[ALUout[11:2]][23]}}, RAM[ALUout[11:2]][23:16]};
+					2'b11: out <= {{24{RAM[ALUout[11:2]][31]}}, RAM[ALUout[11:2]][31:24]};
+					default: out <= 32'bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;
+				endcase
+			end
+		endcase
+	end
+			
+	assign ReadData = out;
 endmodule
